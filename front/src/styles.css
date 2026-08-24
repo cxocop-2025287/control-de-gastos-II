@@ -1,0 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --color-lime: #91BF06;
+  --color-lime-light: #c8e86a;
+  --color-lime-pale: #e5f3c0;
+  --color-lime-bg: #eaf5d0;
+  --color-dark-green: #055A38;
+  --color-beige: #EBE8DA;
+  --color-beige-light: #F5F3E8;
+  --color-beige-dark: #C5C7A3;
+  --color-white: #FFFFFF;
+  --color-black: #1A1A1A;
+  --color-gray: #6b6d5a;
+  --color-gray-light: #b0b2a0;
+  --color-salmon: #e8a090;
+  --color-salmon-hover: #d88a78;
+  --color-yellow-mustard: #D4A017;
+
+  --shadow-neo: 6px 6px 14px rgba(160, 162, 130, 0.45), -4px -4px 10px rgba(255, 255, 255, 0.8);
+  --shadow-neo-inset: inset 4px 4px 8px rgba(160, 162, 130, 0.3), inset -3px -3px 6px rgba(255, 255, 255, 0.8);
+
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--color-beige);
+  color: var(--color-black);
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input {
+  font-family: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-beige);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-beige-dark);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-dark-green);
+}
