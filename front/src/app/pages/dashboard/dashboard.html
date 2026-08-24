@@ -1,0 +1,141 @@
+<div class="dashboard-page">
+
+  <!-- NAVBAR -->
+  <nav class="dash-nav">
+    <div class="nav-brand">
+      <img src="img/LibroLogo.png" alt="Logo" class="nav-logo-img" />
+      <span class="nav-brand-text">Gestor de Gastos</span>
+    </div>
+
+    <div class="nav-menu">
+      <span class="nav-item active">Home</span>
+      <span class="nav-divider"></span>
+      <span class="nav-item">Gastos</span>
+      <span class="nav-divider"></span>
+      <span class="nav-item">Ingresos</span>
+      <span class="nav-divider"></span>
+      <span class="nav-item">Deudas</span>
+      <span class="nav-divider"></span>
+      <span class="nav-item">Resumen</span>
+    </div>
+
+    <button class="nav-logout" (click)="onLogout()">
+      Cerrar<br/>Sesion
+    </button>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="dash-main">
+
+    <!-- LEFT: Cards + Table -->
+    <div class="dash-left">
+
+      <!-- Status Cards 2x2 -->
+      <div class="status-grid">
+        <div class="status-card card-saldo">
+          <span class="card-label">Saldo total</span>
+          <span class="card-value">$0.00</span>
+        </div>
+        <div class="status-card card-ingreso">
+          <span class="card-label">Ingreso</span>
+          <span class="card-value">$0.00</span>
+        </div>
+        <div class="status-card card-gasto">
+          <span class="card-label">Gasto</span>
+          <span class="card-value">$0.00</span>
+        </div>
+        <div class="status-card card-ahorro">
+          <span class="card-label">Ahorro mensual</span>
+          <span class="card-value">$0.00</span>
+        </div>
+      </div>
+
+      <!-- Excel-like Table -->
+      <div class="table-container">
+        <div class="table-inner">
+          <div class="table-row table-header-row">
+            <div class="table-cell header-cell"></div>
+            <div class="table-cell header-cell"></div>
+            <div class="table-cell header-cell"></div>
+            <div class="table-cell header-cell"></div>
+            <div class="table-cell header-cell"></div>
+            <div class="table-cell header-cell"></div>
+          </div>
+          <div class="table-row" *ngFor="let row of tableRows">
+            <div class="table-cell" *ngFor="let col of tableCols"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Chart + Circular -->
+    <div class="dash-right">
+
+      <!-- Flujo de Dinero Chart -->
+      <div class="chart-container">
+        <h3 class="chart-title">Flujo de dinero</h3>
+        <div class="chart-area">
+          <div class="chart-y-axis">
+            <span>40</span>
+            <span>30</span>
+            <span>20</span>
+            <span>10</span>
+            <span>0</span>
+          </div>
+          <div class="chart-graph">
+            <div class="chart-grid">
+              <div class="grid-line" *ngFor="let i of [1,2,3,4]"></div>
+            </div>
+            <svg class="chart-svg" viewBox="0 0 500 200" preserveAspectRatio="none">
+              <path class="chart-line" d="M0,180 C60,170 100,150 150,120 C200,90 250,70 300,50 C350,30 400,20 500,10" fill="none" stroke="#5B9BD5" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="0" cy="180" r="5" fill="#5B9BD5"/>
+              <circle cx="100" cy="150" r="5" fill="#5B9BD5"/>
+              <circle cx="200" cy="90" r="5" fill="#5B9BD5"/>
+              <circle cx="300" cy="50" r="5" fill="#5B9BD5"/>
+              <circle cx="400" cy="20" r="5" fill="#5B9BD5"/>
+              <circle cx="500" cy="10" r="5" fill="#5B9BD5"/>
+            </svg>
+          </div>
+          <div class="chart-x-axis">
+            <span>Jan 2021</span>
+            <span>Jul 2021</span>
+            <span>Jan 2022</span>
+            <span>Jan 2023</span>
+            <span>Jan 2024</span>
+            <span>Jan 2025</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Circular Progress -->
+      <div class="circular-container">
+        <div class="circular-chart">
+          <svg viewBox="0 0 120 120">
+            <circle class="circular-bg" cx="60" cy="60" r="50" />
+            <circle class="circular-progress" cx="60" cy="60" r="50" />
+          </svg>
+          <span class="circular-text">67 %</span>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Session Expired Modal -->
+  <div class="session-expired-overlay" *ngIf="showSessionExpired">
+    <div class="session-expired-modal">
+      <div class="modal-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-yellow-mustard)" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <h2>Sesion expirada</h2>
+      <p>Tu sesion ha terminado por seguridad. Inicia sesion nuevamente para continuar.</p>
+      <button class="btn-accept" (click)="onAcceptSessionExpired()">Aceptar</button>
+    </div>
+  </div>
+</div>
