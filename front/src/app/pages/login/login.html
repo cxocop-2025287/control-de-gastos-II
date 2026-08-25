@@ -1,17 +1,16 @@
-<div class="login-page">
-  <div class="login-left">
+<div class="login-page" (mousemove)="onMouseMove($event)">
+  <!-- Panel Izquierdo con Animación de Partículas -->
+  <div class="login-left" #leftPanel>
+    <canvas #particleCanvas class="particle-canvas"></canvas>
+
     <div class="left-content">
-      <img src="img/LibroLogo.png" alt="Logo" class="logo-img" />
+      <img src="img/LogoTrasparente.png" alt="Logo" class="logo-img" />
       <h1 class="brand-title">Control de<br/>Gastos</h1>
       <p class="brand-subtitle">Gestiona tus finanzas de forma inteligente</p>
-      <div class="floating-shapes">
-        <div class="shape shape-1"></div>
-        <div class="shape shape-2"></div>
-        <div class="shape shape-3"></div>
-      </div>
     </div>
   </div>
 
+  <!-- Panel Derecho Formulario -->
   <div class="login-right">
     <div class="form-container">
       <div class="form-header">
@@ -41,7 +40,7 @@
         </div>
 
         <div class="form-group">
-          <label for="password" class="form-label">Contrasena</label>
+          <label for="password" class="form-label">Contraseña</label>
           <div class="input-wrapper">
             <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -53,7 +52,7 @@
               class="form-input"
               [(ngModel)]="password"
               name="password"
-              placeholder="Tu contrasena"
+              placeholder="Tu contraseña"
               autocomplete="current-password"
               [disabled]="isLoading"
             />
@@ -93,7 +92,7 @@
         </div>
 
         <button type="submit" class="btn-login" [disabled]="isLoading">
-          <span *ngIf="!isLoading">Iniciar Sesion</span>
+          <span *ngIf="!isLoading">Iniciar Sesión</span>
           <span *ngIf="isLoading" class="loading-content">
             <span class="spinner"></span>
             Ingresando...
