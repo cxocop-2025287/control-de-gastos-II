@@ -8,15 +8,14 @@
     </div>
 
     <div class="nav-menu">
-      <span class="nav-item active">Home</span>
-      <span class="nav-divider"></span>
-      <span class="nav-item">Gastos</span>
-      <span class="nav-divider"></span>
-      <span class="nav-item">Ingresos</span>
-      <span class="nav-divider"></span>
-      <span class="nav-item">Deudas</span>
-      <span class="nav-divider"></span>
-      <span class="nav-item">Resumen</span>
+      <ng-container *ngFor="let item of navItems; let last = last">
+        <span
+          class="nav-item"
+          [class.active]="activeNav === item"
+          (click)="onNavClick(item)"
+        >{{ item }}</span>
+        <span class="nav-divider" *ngIf="!last"></span>
+      </ng-container>
     </div>
 
     <button class="nav-logout" (click)="onLogout()">
@@ -34,19 +33,19 @@
       <div class="status-grid">
         <div class="status-card card-saldo">
           <span class="card-label">Saldo total</span>
-          <span class="card-value">$0.00</span>
+          <span class="card-value">{{ formatCurrency(summary.saldoTotal) }}</span>
         </div>
         <div class="status-card card-ingreso">
           <span class="card-label">Ingreso</span>
-          <span class="card-value">$0.00</span>
+          <span class="card-value">{{ formatCurrency(summary.ingreso) }}</span>
         </div>
         <div class="status-card card-gasto">
           <span class="card-label">Gasto</span>
-          <span class="card-value">$0.00</span>
+          <span class="card-value">{{ formatCurrency(summary.gasto) }}</span>
         </div>
         <div class="status-card card-ahorro">
           <span class="card-label">Ahorro mensual</span>
-          <span class="card-value">$0.00</span>
+          <span class="card-value">{{ formatCurrency(summary.ahorroMensual) }}</span>
         </div>
       </div>
 
@@ -54,15 +53,24 @@
       <div class="table-container">
         <div class="table-inner">
           <div class="table-row table-header-row">
-            <div class="table-cell header-cell"></div>
-            <div class="table-cell header-cell"></div>
-            <div class="table-cell header-cell"></div>
-            <div class="table-cell header-cell"></div>
-            <div class="table-cell header-cell"></div>
-            <div class="table-cell header-cell"></div>
+            <div class="table-cell header-cell">Fecha</div>
+            <div class="table-cell header-cell">Descripcion</div>
+            <div class="table-cell header-cell">Categoria</div>
+            <div class="table-cell header-cell">Tipo</div>
+            <div class="table-cell header-cell">Monto</div>
           </div>
-          <div class="table-row" *ngFor="let row of tableRows">
-            <div class="table-cell" *ngFor="let col of tableCols"></div>
+          <div class="table-row" *ngFor="let m of movements">
+            <div class="table-cell cell-date">{{ formatDate(m.fecha) }}</div>
+            <div class="table-cell cell-desc">{{ m.descripcion }}</div>
+            <div class="table-cell cell-cat">{{ m.categoria }}</div>
+            <div class="table-cell cell-type">
+              <span class="type-badge" [class.type-ingreso]="m.tipo === 'ingreso'" [class.type-gasto]="m.tipo === 'gasto'">
+                {{ m.tipo === 'ingreso' ? 'Ingreso' : 'Gasto' }}
+              </span>
+            </div>
+            <div class="table-cell cell-amount" [class.amount-positive]="m.tipo === 'ingreso'" [class.amount-negative]="m.tipo === 'gasto'">
+              {{ m.tipo === 'ingreso' ? '+' : '-' }}{{ formatCurrency(m.monto) }}
+            </div>
           </div>
         </div>
       </div>
@@ -74,48 +82,98 @@
 
       <!-- Flujo de Dinero Chart -->
       <div class="chart-container">
-        <h3 class="chart-title">Flujo de dinero</h3>
+        <div class="chart-header">
+          <h3 class="chart-title">Flujo de dinero</h3>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-dot dot-ingreso"></span> Ingresos</span>
+            <span class="legend-item"><span class="legend-dot dot-gasto"></span> Gastos</span>
+          </div>
+        </div>
         <div class="chart-area">
           <div class="chart-y-axis">
-            <span>40</span>
-            <span>30</span>
-            <span>20</span>
-            <span>10</span>
-            <span>0</span>
+            <span *ngFor="let label of chartYLabels">{{ label }}</span>
           </div>
           <div class="chart-graph">
             <div class="chart-grid">
               <div class="grid-line" *ngFor="let i of [1,2,3,4]"></div>
             </div>
             <svg class="chart-svg" viewBox="0 0 500 200" preserveAspectRatio="none">
-              <path class="chart-line" d="M0,180 C60,170 100,150 150,120 C200,90 250,70 300,50 C350,30 400,20 500,10" fill="none" stroke="#5B9BD5" stroke-width="3" stroke-linecap="round"/>
-              <circle cx="0" cy="180" r="5" fill="#5B9BD5"/>
-              <circle cx="100" cy="150" r="5" fill="#5B9BD5"/>
-              <circle cx="200" cy="90" r="5" fill="#5B9BD5"/>
-              <circle cx="300" cy="50" r="5" fill="#5B9BD5"/>
-              <circle cx="400" cy="20" r="5" fill="#5B9BD5"/>
-              <circle cx="500" cy="10" r="5" fill="#5B9BD5"/>
+              <defs>
+                <linearGradient id="gradIngreso" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#91BF06" stop-opacity="0.4"/>
+                  <stop offset="100%" stop-color="#91BF06" stop-opacity="0.03"/>
+                </linearGradient>
+                <linearGradient id="gradGasto" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#e8a090" stop-opacity="0.35"/>
+                  <stop offset="100%" stop-color="#e8a090" stop-opacity="0.03"/>
+                </linearGradient>
+              </defs>
+              <path [attr.d]="chartIngresoArea" fill="url(#gradIngreso)"/>
+              <path [attr.d]="chartGastoArea" fill="url(#gradGasto)"/>
+              <path [attr.d]="chartIngresoPath" fill="none" stroke="#91BF06" stroke-width="3" stroke-linecap="round"/>
+              <path [attr.d]="chartGastoPath" fill="none" stroke="#e8a090" stroke-width="3" stroke-linecap="round"/>
+              <circle *ngFor="let dot of chartDots" [attr.cx]="dot.x" [attr.cy]="dot.y" r="4" [attr.fill]="dot.color"/>
             </svg>
           </div>
           <div class="chart-x-axis">
-            <span>Jan 2021</span>
-            <span>Jul 2021</span>
-            <span>Jan 2022</span>
-            <span>Jan 2023</span>
-            <span>Jan 2024</span>
-            <span>Jan 2025</span>
+            <span *ngFor="let label of chartLabels">{{ label }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Circular Progress -->
+      <!-- Circular Progress - Deudas -->
       <div class="circular-container">
-        <div class="circular-chart">
-          <svg viewBox="0 0 120 120">
-            <circle class="circular-bg" cx="60" cy="60" r="50" />
-            <circle class="circular-progress" cx="60" cy="60" r="50" />
-          </svg>
-          <span class="circular-text">67 %</span>
+        <div class="circular-left">
+          <div class="circular-label-top">Deudas pagadas</div>
+          <div class="circular-chart">
+            <svg viewBox="0 0 120 120">
+              <circle class="circular-bg" cx="60" cy="60" r="50" />
+              <circle
+                class="circular-progress"
+                cx="60" cy="60" r="50"
+                [style.strokeDashoffset]="314.16 - (314.16 * debtProgress.porcentaje / 100)"
+              />
+            </svg>
+            <span class="circular-text">{{ debtProgress.porcentaje }}%</span>
+          </div>
+        </div>
+        <div class="circular-right">
+          <div class="circular-summary">
+            <div class="summary-row">
+              <span class="summary-label">Total deudas</span>
+              <span class="summary-value">{{ formatCurrency(debtProgress.total) }}</span>
+            </div>
+            <div class="summary-row">
+              <span class="summary-label">Pagado</span>
+              <span class="summary-value summary-paid">{{ formatCurrency(debtProgress.pagado) }}</span>
+            </div>
+            <div class="summary-row">
+              <span class="summary-label">Restante</span>
+              <span class="summary-value summary-remaining">{{ formatCurrency(debtProgress.restante) }}</span>
+            </div>
+          </div>
+          <div class="debt-list">
+            <div class="debt-item" *ngFor="let d of debtProgress.deudas">
+              <div class="debt-item-header">
+                <span class="debt-name">{{ d.nombre }}</span>
+                <span class="debt-amount">{{ formatCurrency(d.pagado) }} / {{ formatCurrency(d.total) }}</span>
+              </div>
+              <div class="debt-bar">
+                <div class="debt-bar-fill" [style.width.%]="(d.pagado / d.total) * 100"></div>
+              </div>
+            </div>
+          </div>
+          <div class="circular-monthly">
+            <span class="monthly-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-dark-green)" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </span>
+            Pago mensual: <strong>{{ formatCurrency(debtProgress.pagoMensual) }}</strong>
+          </div>
         </div>
       </div>
 
