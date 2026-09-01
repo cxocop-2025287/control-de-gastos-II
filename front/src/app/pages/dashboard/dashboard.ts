@@ -32,14 +32,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   debtProgress: DebtProgress = { porcentaje: 0, pagado: 0, total: 0, restante: 0, pagoMensual: 0, deudas: [] };
 
   chartPath = '';
-  chartIngresoPath = '';
-  chartIngresoArea = '';
-  chartGastoPath = '';
-  chartGastoArea = '';
-  chartDots: { x: number; y: number; color: string }[] = [];
+  chartArea = '';
+  chartDots: { x: number; y: number }[] = [];
   chartLabels: string[] = [];
   chartMaxValue = 0;
   chartYLabels: string[] = [];
+  currentMonth = '';
+
+  debtOffset = 314.16;
+  displayedPorcentaje = 0;
+  displayedSummary: DashboardSummary = { saldoTotal: 0, ingreso: 0, gasto: 0, ahorroMensual: 0 };
 
   constructor(
     private authService: AuthService,
@@ -56,17 +58,46 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
 
     this.loadData();
+    this.animateCounters();
   }
 
   ngOnDestroy(): void {
     this.sessionSub?.unsubscribe();
   }
 
+  private animateCounters(): void {
+    const duration = 1200;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      this.displayedSummary = {
+        saldoTotal: this.summary.saldoTotal * eased,
+        ingreso: this.summary.ingreso * eased,
+        gasto: this.summary.gasto * eased,
+        ahorroMensual: this.summary.ahorroMensual * eased,
+      };
+      this.cdr.detectChanges();
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
   private loadData(): void {
+    const now = new Date();
+    this.currentMonth = now.toLocaleDateString('es-GT', { month: 'short' });
+
     this.summary = this.dashboardService.getSummary();
     this.movements = this.dashboardService.getRecentMovements();
     this.chartData = this.dashboardService.getChartData();
     this.debtProgress = this.dashboardService.getDebtProgress();
+    this.debtOffset = 314.16 - (314.16 * this.debtProgress.porcentaje) / 100;
+    this.displayedPorcentaje = this.debtProgress.porcentaje;
+
+    if (!this.chartData.length && this.summary.ingreso > 0) {
+      this.chartData = [{ mes: this.currentMonth, valor: this.summary.ingreso }];
+      this.cdr.detectChanges();
+    }
     this.buildChart();
   }
 
@@ -105,60 +136,50 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private buildChart(): void {
     const data = this.chartData;
-    if (!data.length) return;
 
     const width = 500;
     const height = 200;
     const padding = 10;
 
-    let maxVal = 0;
-    for (const d of data) {
-      if (d.ingresos > maxVal) maxVal = d.ingresos;
-      if (d.gastos > maxVal) maxVal = d.gastos;
-    }
-    maxVal = Math.ceil(maxVal / 1000) * 1000;
+    const maxVal = 20000;
+
     this.chartMaxValue = maxVal;
+    this.chartPath = '';
+    this.chartArea = '';
+    this.chartDots = [];
+    this.chartLabels = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'];
     this.chartYLabels = [];
-    for (let i = 4; i >= 0; i--) {
-      this.chartYLabels.push(this.formatCurrencyShort((maxVal / 4) * i));
+    for (let i = 5; i >= 0; i--) {
+      const v = (maxVal / 5) * i;
+      this.chartYLabels.push(v === 0 ? 'Q0' : 'Q' + v / 1000 + 'k');
     }
 
-    const stepX = (width - padding * 2) / (data.length - 1);
+    if (!data.length) {
+      return;
+    }
 
-    const toY = (val: number) => height - padding - (val / maxVal) * (height - padding * 2);
+    const bottom = height;
+    const toY = (val: number) => height - (val / maxVal) * height;
 
-    let ingresoPath = '';
-    let gastoPath = '';
-    const dots: { x: number; y: number; color: string }[] = [];
-    this.chartLabels = [];
+    const n = data.length + 1;
+    const stepX = (width - padding * 2) / n;
 
+    const points: { x: number; y: number }[] = [];
+    points.push({ x: padding, y: toY(0) });
     for (let i = 0; i < data.length; i++) {
-      const x = padding + i * stepX;
-      const yI = toY(data[i].ingresos);
-      const yG = toY(data[i].gastos);
-
-      if (i === 0) {
-        ingresoPath += `M${x},${yI}`;
-        gastoPath += `M${x},${yG}`;
-      } else {
-        const prevX = padding + (i - 1) * stepX;
-        const cpOffset = stepX * 0.4;
-        ingresoPath += ` C${prevX + cpOffset},${toY(data[i - 1].ingresos)} ${x - cpOffset},${yI} ${x},${yI}`;
-        gastoPath += ` C${prevX + cpOffset},${toY(data[i - 1].gastos)} ${x - cpOffset},${yG} ${x},${yG}`;
-      }
-
-      dots.push({ x, y: yI, color: '#91BF06' });
-      dots.push({ x, y: yG, color: '#e8a090' });
-      this.chartLabels.push(data[i].mes);
+      points.push({ x: padding + (i + 1) * stepX, y: toY(data[i].valor) });
     }
 
-    this.chartIngresoPath = ingresoPath;
-    this.chartGastoPath = gastoPath;
+    let path = `M${points[0].x},${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const cur = points[i];
+      const cpOffset = stepX * 0.4;
+      path += ` C${prev.x + cpOffset},${prev.y} ${cur.x - cpOffset},${cur.y} ${cur.x},${cur.y}`;
+    }
 
-    const bottom = height - padding;
-    this.chartIngresoArea = ingresoPath + ` L${padding + (data.length - 1) * stepX},${bottom} L${padding},${bottom} Z`;
-    this.chartGastoArea = gastoPath + ` L${padding + (data.length - 1) * stepX},${bottom} L${padding},${bottom} Z`;
-
-    this.chartDots = dots;
+    this.chartPath = path;
+    this.chartArea = path + ` L${points[points.length - 1].x},${bottom} L${points[0].x},${bottom} Z`;
+    this.chartDots = points.slice(1);
   }
 }
