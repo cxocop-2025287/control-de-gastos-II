@@ -8,7 +8,7 @@ let isSessionExpiredShown = false;
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
 
-  if (req.url.includes('/auth/login')) {
+  if (req.url.includes('/auth/login') || req.url.includes('/config')) {
     return next(req);
   }
 
@@ -29,7 +29,15 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         !isSessionExpiredShown
       ) {
         isSessionExpiredShown = true;
-        authService.clearSession();
+
+        // Si el backend dice SESSION_EXPIRED, mostrar modal en vez de solo limpiar
+        const errorCode = error.error?.errorCode;
+        if (errorCode === 'SESSION_EXPIRED' || errorCode === 'TOKEN_EXPIRED') {
+          authService.handleSessionExpired();
+        } else {
+          authService.clearSession();
+        }
+
         setTimeout(() => {
           isSessionExpiredShown = false;
         }, 3000);
