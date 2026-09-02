@@ -1,7 +1,7 @@
 import { Injectable, signal, computed, NgZone } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap, Subject } from 'rxjs';
+import { Observable, tap, Subject, firstValueFrom } from 'rxjs';
 
 export interface LoginResponse {
   message: string;
@@ -20,7 +20,7 @@ export interface User {
   role: string;
 }
 
-const ACTIVITY_EVENTS = ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+const ACTIVITY_EVENTS = ['click', 'mousemove', 'keydown', 'scroll', 'touchstart', 'wheel', 'mousedown', 'keyup'];
 
 @Injectable({
   providedIn: 'root',
@@ -28,26 +28,78 @@ const ACTIVITY_EVENTS = ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'
 export class AuthService {
   private readonly TOKEN_KEY = 'auth_token';
   private readonly USER_KEY = 'auth_user';
-  private readonly EXPIRES_KEY = 'auth_expires_in';
+  private readonly LAST_ACTIVITY_KEY = 'auth_last_activity';
 
   private currentUser = signal<User | null>(this.loadUser());
   readonly user = computed(() => this.currentUser());
   readonly isAuthenticated = computed(() => !!this.currentUser());
   readonly userRole = computed(() => this.currentUser()?.role || null);
 
-  private idleTimer: ReturnType<typeof setTimeout> | null = null;
-  private boundActivityHandler = this.resetIdleTimer.bind(this);
+  private checkInterval: ReturnType<typeof setInterval> | null = null;
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private boundActivityHandler = this.onUserActivity.bind(this);
   private _sessionExpired = new Subject<void>();
   readonly sessionExpired$ = this._sessionExpired.asObservable();
+
+  private isSessionExpired = false;
+  private inactivityTimeoutMs = 60 * 1000;
+  private lastHeartbeatTime = 0;
+
+  /** Flag para evitar arrancar múltiples monitores al navegar entre vistas */
+  private isMonitorRunning = false;
+  /** Flag para saber si la config ya fue cargada al menos una vez */
+  private configLoaded = false;
 
   constructor(
     private http: HttpClient,
     private router: Router,
     private ngZone: NgZone
   ) {
+    this.loadConfig();
+    this.checkSessionOnInit();
+  }
+
+  private checkSessionOnInit(): void {
     const token = this.getToken();
-    if (token && this.isLoggedIn()) {
-      this.startIdleTimer();
+    if (token && this.isLoggedIn() && this.currentUser()) {
+      console.log('🔄 Sesión activa detectada al iniciar');
+      this.startMonitorIfNeeded();
+    }
+  }
+
+  /**
+   * Llamado desde cada componente (Dashboard, Ingresos) al inicializarse.
+   * Solo recarga la config si no se ha cargado aún, y solo inicia el
+   * monitor si no está corriendo. NO resetea el timer de actividad.
+   */
+  async reloadConfig(): Promise<void> {
+    if (!this.configLoaded) {
+      await this.loadConfig();
+    }
+    this.startMonitorIfNeeded();
+  }
+
+  private async loadConfig(): Promise<void> {
+    try {
+      const config = await firstValueFrom(
+        this.http.get<{ sessionInactivityTimeout: number }>('/api/config')
+      );
+      const newTimeout = (config.sessionInactivityTimeout || 60) * 1000;
+
+      if (this.inactivityTimeoutMs !== newTimeout) {
+        this.inactivityTimeoutMs = newTimeout;
+        console.log(`⏱️ Tiempo de inactividad: ${this.inactivityTimeoutMs / 1000} segundos`);
+
+        // Si el timeout cambió y ya hay un monitor corriendo, reiniciarlo con el nuevo valor
+        if (this.isMonitorRunning) {
+          this.stopMonitor();
+          this.startMonitorIfNeeded();
+        }
+      }
+
+      this.configLoaded = true;
+    } catch (error) {
+      console.error('Error cargando configuración:', error);
     }
   }
 
@@ -55,19 +107,23 @@ export class AuthService {
     return this.http
       .post<LoginResponse>('/api/auth/login', { name, password })
       .pipe(
-        tap((response) => {
-          this.setSession(response.token, response.user, response.expiresIn);
+        tap(async (response) => {
+          this.isSessionExpired = false;
+          this.configLoaded = false; // Forzar recarga de config tras login
+          await this.loadConfig();
+          this.setSession(response.token, response.user);
         })
       );
   }
 
   logout(): void {
-    this.stopIdleTimer();
+    this.stopMonitor();
     this.removeActivityListeners();
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.USER_KEY);
-    localStorage.removeItem(this.EXPIRES_KEY);
+    localStorage.removeItem(this.LAST_ACTIVITY_KEY);
     this.currentUser.set(null);
+    this.isSessionExpired = false;
     this.router.navigate(['/login']);
   }
 
@@ -96,57 +152,117 @@ export class AuthService {
     return this.currentUser()?.role || null;
   }
 
-  private parseExpiresToMs(expiresIn: string): number {
-    const match = expiresIn.match(/^(\d+)(s|m|h|d)$/);
-    if (!match) return 3600000;
-
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
-
-    switch (unit) {
-      case 's': return value * 1000;
-      case 'm': return value * 60 * 1000;
-      case 'h': return value * 60 * 60 * 1000;
-      case 'd': return value * 24 * 60 * 60 * 1000;
-      default: return 3600000;
-    }
-  }
-
-  private setSession(token: string, user: User, expiresIn: string): void {
+  private setSession(token: string, user: User): void {
     localStorage.setItem(this.TOKEN_KEY, token);
     localStorage.setItem(this.USER_KEY, JSON.stringify(user));
-    localStorage.setItem(this.EXPIRES_KEY, expiresIn);
+    localStorage.setItem(this.LAST_ACTIVITY_KEY, Date.now().toString());
     this.currentUser.set(user);
-    this.startIdleTimer();
+    this.startMonitorIfNeeded();
   }
 
-  private getIdleTimeoutMs(): number {
-    const expiresIn = localStorage.getItem(this.EXPIRES_KEY);
-    return this.parseExpiresToMs(expiresIn || '4h');
+  /**
+   * Llamado cuando el usuario hace una acción real (click, mousemove, etc.)
+   * Actualiza el timestamp de última actividad y envía heartbeat al backend.
+   */
+  private onUserActivity(): void {
+    if (!this.currentUser() || this.isSessionExpired) return;
+    const now = Date.now();
+    localStorage.setItem(this.LAST_ACTIVITY_KEY, now.toString());
+    this.sendHeartbeat();
   }
 
-  private startIdleTimer(): void {
-    this.stopIdleTimer();
-    this.removeActivityListeners();
+  /**
+   * Inicia el monitor de inactividad y heartbeat SOLO si no está ya corriendo.
+   */
+  private startMonitorIfNeeded(): void {
+    if (this.isMonitorRunning) return;
+    if (!this.currentUser() || !this.getToken() || !this.isLoggedIn()) return;
+
+    this.isMonitorRunning = true;
     this.addActivityListeners();
-    this.resetIdleTimer();
+
+    this.ngZone.runOutsideAngular(() => {
+      // Check de inactividad cada segundo
+      this.checkInterval = setInterval(() => {
+        this.checkInactivity();
+      }, 1000);
+
+      // Heartbeat al backend cada 10s (solo si hay actividad reciente)
+      this.heartbeatInterval = setInterval(() => {
+        if (!this.currentUser() || this.isSessionExpired) {
+          return;
+        }
+        // Solo enviar heartbeat si el usuario tuvo actividad en los últimos 10s
+        const lastActivity = localStorage.getItem(this.LAST_ACTIVITY_KEY);
+        if (lastActivity) {
+          const elapsed = Date.now() - parseInt(lastActivity, 10);
+          if (elapsed < 10000) {
+            this.sendHeartbeat();
+          }
+        }
+      }, 10000);
+    });
+
+    console.log(`🔄 Monitor de inactividad iniciado (${this.inactivityTimeoutMs / 1000}s)`);
   }
 
-  private resetIdleTimer(): void {
-    if (this.idleTimer) {
-      clearTimeout(this.idleTimer);
-    }
+  private checkInactivity(): void {
+    if (this.isSessionExpired) return;
+    if (!this.currentUser()) return;
 
-    this.idleTimer = setTimeout(() => {
+    const lastActivity = localStorage.getItem(this.LAST_ACTIVITY_KEY);
+    if (!lastActivity) {
       this.handleSessionExpired();
-    }, this.getIdleTimeoutMs());
+      return;
+    }
+
+    const lastActivityTime = parseInt(lastActivity, 10);
+    const now = Date.now();
+    const inactiveTime = now - lastActivityTime;
+
+    if (inactiveTime > this.inactivityTimeoutMs) {
+      console.log(`⏰ Inactividad detectada: ${Math.round(inactiveTime / 1000)}s (límite: ${Math.round(this.inactivityTimeoutMs / 1000)}s)`);
+      this.handleSessionExpired();
+    }
   }
 
-  private stopIdleTimer(): void {
-    if (this.idleTimer) {
-      clearTimeout(this.idleTimer);
-      this.idleTimer = null;
+  private stopMonitor(): void {
+    this.isMonitorRunning = false;
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+      this.checkInterval = null;
     }
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+  private sendHeartbeat(): void {
+    const token = this.getToken();
+    if (!token || this.isSessionExpired) return;
+
+    const now = Date.now();
+    // Throttle: mínimo 5 segundos entre heartbeats
+    if (now - this.lastHeartbeatTime < 5000) {
+      return;
+    }
+    this.lastHeartbeatTime = now;
+
+    this.http.get('/api/activity/heartbeat').subscribe({
+      next: (response: any) => {
+        if (response.isActive === false) {
+          console.log('⏰ Backend reporta sesión inactiva');
+          this.handleSessionExpired();
+        }
+      },
+      error: (error) => {
+        if (error.status === 401 || error.status === 403) {
+          console.log('⏰ Backend rechazó heartbeat (sesión expirada)');
+          this.handleSessionExpired();
+        }
+      }
+    });
   }
 
   private addActivityListeners(): void {
@@ -155,6 +271,7 @@ export class AuthService {
         window.addEventListener(event, this.boundActivityHandler, { passive: true });
       });
     });
+    console.log('👆 Listeners de actividad agregados');
   }
 
   private removeActivityListeners(): void {
@@ -163,22 +280,34 @@ export class AuthService {
     });
   }
 
-  private handleSessionExpired(): void {
-    this.stopIdleTimer();
+  handleSessionExpired(): void {
+    if (this.isSessionExpired) return;
+    this.isSessionExpired = true;
+
+    this.stopMonitor();
     this.removeActivityListeners();
+    this._sessionExpired.next();
+
+    console.log('⏰ Sesión expirada por inactividad');
+  }
+
+  confirmSessionExpired(): void {
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.USER_KEY);
-    localStorage.removeItem(this.EXPIRES_KEY);
+    localStorage.removeItem(this.LAST_ACTIVITY_KEY);
     this.currentUser.set(null);
-    this._sessionExpired.next();
+    this.isSessionExpired = false;
+    this.configLoaded = false;
+    this.router.navigate(['/login']);
   }
 
   clearSession(): void {
-    this.stopIdleTimer();
+    this.isSessionExpired = true;
+    this.stopMonitor();
     this.removeActivityListeners();
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.USER_KEY);
-    localStorage.removeItem(this.EXPIRES_KEY);
+    localStorage.removeItem(this.LAST_ACTIVITY_KEY);
     this.currentUser.set(null);
   }
 
@@ -195,7 +324,7 @@ export class AuthService {
       if (Date.now() >= expiry) {
         localStorage.removeItem(this.TOKEN_KEY);
         localStorage.removeItem(this.USER_KEY);
-        localStorage.removeItem(this.EXPIRES_KEY);
+        localStorage.removeItem(this.LAST_ACTIVITY_KEY);
         return null;
       }
 
@@ -203,8 +332,12 @@ export class AuthService {
     } catch {
       localStorage.removeItem(this.TOKEN_KEY);
       localStorage.removeItem(this.USER_KEY);
-      localStorage.removeItem(this.EXPIRES_KEY);
+      localStorage.removeItem(this.LAST_ACTIVITY_KEY);
       return null;
     }
+  }
+
+  resetInactivityTimer(): void {
+    this.onUserActivity();
   }
 }
