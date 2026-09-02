@@ -13,7 +13,7 @@ export const roleMiddleware = (...allowedRoles: Role[]) => {
 
     if (!allowedRoles.includes(req.user.role)) {
       res.status(403).json({
-        message: 'No tienes permiso para acceder a este recurso',
+        message: 'No tiene permiso para acceder a este recurso',
         errorCode: 'INSUFFICIENT_PERMISSIONS',
       });
       return;
