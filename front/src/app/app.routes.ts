@@ -14,6 +14,12 @@ export const routes: Routes = [
       import('./pages/dashboard/dashboard').then((m) => m.DashboardComponent),
   },
   {
+    path: 'ingresos',
+    canActivate: [AuthGuard],
+    loadComponent: () =>
+      import('./pages/ingresos/ingresos').then((m) => m.IngresosComponent),
+  },
+  {
     path: '',
     redirectTo: 'app',
     pathMatch: 'full',
