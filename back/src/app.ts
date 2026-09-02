@@ -4,6 +4,7 @@ import { env } from './config/env';
 import routes from './routes';
 import { errorMiddleware } from './middleware/error.middleware';
 import { UserModel } from './models/user.model';
+import { IncomeModel } from './models/income.model';
 
 const app = express();
 
@@ -17,6 +18,16 @@ app.get('/api/debug/users', async (_req, res) => {
     res.json({ count: users.length, users });
   } catch (error) {
     res.status(500).json({ error: 'Error al consultar usuarios', details: (error as Error).message });
+  }
+});
+
+app.get('/api/debug/incomes', async (req, res) => {
+  try {
+    // Esto es solo para debug, mostrará todos los ingresos sin autenticación
+    const result = await (await import('./config/database')).default.query('SELECT * FROM incomes ORDER BY id DESC LIMIT 20');
+    res.json({ count: result.rows.length, incomes: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al consultar ingresos', details: (error as Error).message });
   }
 });
 
