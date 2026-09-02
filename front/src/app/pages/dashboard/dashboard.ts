@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { Subscription, finalize } from 'rxjs';
 import { AuthService, User } from '../../services/auth.service';
 import {
   DashboardService,
@@ -21,6 +21,7 @@ import {
 export class DashboardComponent implements OnInit, OnDestroy {
   user: User | null = null;
   showSessionExpired = false;
+  loading = true;
   private sessionSub?: Subscription;
 
   activeNav = 'Home';
@@ -29,7 +30,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   summary: DashboardSummary = { saldoTotal: 0, ingreso: 0, gasto: 0, ahorroMensual: 0 };
   movements: Movement[] = [];
   chartData: ChartPoint[] = [];
-  debtProgress: DebtProgress = { porcentaje: 0, pagado: 0, total: 0, restante: 0, pagoMensual: 0, deudas: [] };
+  debtProgress: DebtProgress = {
+    porcentaje: 0,
+    pagado: 0,
+    total: 0,
+    restante: 0,
+    pagoMensual: 0,
+    deudas: [],
+  };
 
   chartPath = '';
   chartArea = '';
@@ -50,19 +58,56 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef
   ) {}
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     this.user = this.authService.getUser();
+    
+    await this.authService.reloadConfig();
+    
     this.sessionSub = this.authService.sessionExpired$.subscribe(() => {
       this.showSessionExpired = true;
       this.cdr.detectChanges();
     });
 
     this.loadData();
-    this.animateCounters();
   }
 
   ngOnDestroy(): void {
     this.sessionSub?.unsubscribe();
+  }
+
+  private loadData(): void {
+    this.loading = true;
+    const now = new Date();
+    this.currentMonth = now.toLocaleDateString('es-GT', { month: 'long', year: 'numeric' });
+
+    console.log(`📅 Dashboard - Mes actual: ${this.currentMonth}`);
+
+    this.dashboardService.loadDashboardData()
+      .pipe(finalize(() => {
+        this.loading = false;
+        this.cdr.detectChanges();
+      }))
+      .subscribe({
+        next: (data) => {
+          this.summary = data.summary;
+          this.movements = data.movements.slice(0, 10);
+          this.chartData = data.chartData;
+          this.debtProgress = this.dashboardService.getDebtProgress();
+
+          this.debtOffset = 314.16 - (314.16 * this.debtProgress.porcentaje) / 100;
+          this.displayedPorcentaje = this.debtProgress.porcentaje;
+
+          this.buildChart();
+          this.animateCounters();
+        },
+        error: (err) => {
+          console.error('Error cargando dashboard:', err);
+          this.summary = { saldoTotal: 0, ingreso: 0, gasto: 0, ahorroMensual: 0 };
+          this.chartData = [];
+          this.buildChart();
+          this.animateCounters();
+        }
+      });
   }
 
   private animateCounters(): void {
@@ -83,25 +128,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     requestAnimationFrame(tick);
   }
 
-  private loadData(): void {
-    const now = new Date();
-    this.currentMonth = now.toLocaleDateString('es-GT', { month: 'short' });
-
-    this.summary = this.dashboardService.getSummary();
-    this.movements = this.dashboardService.getRecentMovements();
-    this.chartData = this.dashboardService.getChartData();
-    this.debtProgress = this.dashboardService.getDebtProgress();
-    this.debtOffset = 314.16 - (314.16 * this.debtProgress.porcentaje) / 100;
-    this.displayedPorcentaje = this.debtProgress.porcentaje;
-
-    if (!this.chartData.length && this.summary.ingreso > 0) {
-      this.chartData = [{ mes: this.currentMonth, valor: this.summary.ingreso }];
-      this.cdr.detectChanges();
-    }
-    this.buildChart();
-  }
-
   onNavClick(item: string): void {
+    if (item === 'Ingresos') {
+      this.router.navigate(['/ingresos']);
+      return;
+    }
     this.activeNav = item;
   }
 
@@ -111,23 +142,42 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   onAcceptSessionExpired(): void {
     this.showSessionExpired = false;
-    this.authService.logout();
+    this.authService.confirmSessionExpired();
   }
 
   formatCurrency(value: number): string {
-    return 'Q' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const num = typeof value === 'number' ? value : parseFloat(String(value)) || 0;
+    return 'Q' + num.toFixed(2);
   }
 
   formatCurrencyShort(value: number): string {
-    if (value >= 1000) {
-      return 'Q' + (value / 1000).toFixed(1) + 'k';
+    const num = typeof value === 'number' ? value : parseFloat(String(value)) || 0;
+    if (num >= 1000) {
+      return 'Q' + (num / 1000).toFixed(1) + 'k';
     }
-    return 'Q' + value.toFixed(0);
+    return 'Q' + num.toFixed(0);
   }
 
   formatDate(dateStr: string): string {
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' });
+    if (!dateStr) return 'Fecha no disponible';
+    try {
+      // Parsear como fecha local para evitar desfase UTC
+      const parts = String(dateStr).split('T')[0].split('-');
+      let d: Date;
+      if (parts.length >= 3) {
+        d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      } else {
+        d = new Date(dateStr);
+      }
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('es-GT', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch {
+      return dateStr;
+    }
   }
 
   getMovementIcon(type: string): string {
@@ -135,13 +185,20 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private buildChart(): void {
-    const data = this.chartData;
+    const data = this.chartData || [];
 
     const width = 500;
     const height = 200;
-    const padding = 10;
+    const paddingY = 16;
 
-    const maxVal = 20000;
+    let maxVal = 0;
+    if (data.length > 0) {
+      maxVal = Math.max(...data.map(d => d.valor || 0));
+    }
+    if (maxVal === 0) {
+      maxVal = 10000;
+    }
+    maxVal = Math.ceil(maxVal / 5000) * 5000;
 
     this.chartMaxValue = maxVal;
     this.chartPath = '';
@@ -149,37 +206,48 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.chartDots = [];
     this.chartLabels = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'];
     this.chartYLabels = [];
+
     for (let i = 5; i >= 0; i--) {
       const v = (maxVal / 5) * i;
-      this.chartYLabels.push(v === 0 ? 'Q0' : 'Q' + v / 1000 + 'k');
-    }
-
-    if (!data.length) {
-      return;
+      this.chartYLabels.push(v === 0 ? 'Q0' : 'Q' + (v / 1000).toFixed(1) + 'k');
     }
 
     const bottom = height;
-    const toY = (val: number) => height - (val / maxVal) * height;
+    const toY = (val: number) => {
+      const usableHeight = height - paddingY * 2;
+      return height - paddingY - (val / maxVal) * usableHeight;
+    };
 
-    const n = data.length + 1;
-    const stepX = (width - padding * 2) / n;
+    // 4 columnas uniformes de ancho width/4 = 125px
+    // Centros en 62.5, 187.5, 312.5, 437.5
+    const colWidth = width / 4;
+    const dotPoints: { x: number; y: number }[] = [];
 
-    const points: { x: number; y: number }[] = [];
-    points.push({ x: padding, y: toY(0) });
-    for (let i = 0; i < data.length; i++) {
-      points.push({ x: padding + (i + 1) * stepX, y: toY(data[i].valor) });
+    for (let i = 0; i < 4; i++) {
+      const val = data[i]?.valor || 0;
+      dotPoints.push({
+        x: colWidth * i + colWidth / 2,
+        y: toY(val),
+      });
     }
 
-    let path = `M${points[0].x},${points[0].y}`;
-    for (let i = 1; i < points.length; i++) {
-      const prev = points[i - 1];
-      const cur = points[i];
-      const cpOffset = stepX * 0.4;
-      path += ` C${prev.x + cpOffset},${prev.y} ${cur.x - cpOffset},${cur.y} ${cur.x},${cur.y}`;
+    // Puntos para trazar la curva suave cubriendo todo el ancho de 0 a width (500)
+    const curvePoints: { x: number; y: number }[] = [
+      { x: 0, y: dotPoints[0].y },
+      ...dotPoints,
+      { x: width, y: dotPoints[3].y },
+    ];
+
+    let path = `M${curvePoints[0].x},${curvePoints[0].y}`;
+    for (let i = 1; i < curvePoints.length; i++) {
+      const prev = curvePoints[i - 1];
+      const cur = curvePoints[i];
+      const cpX = (prev.x + cur.x) / 2;
+      path += ` C${cpX},${prev.y} ${cpX},${cur.y} ${cur.x},${cur.y}`;
     }
 
     this.chartPath = path;
-    this.chartArea = path + ` L${points[points.length - 1].x},${bottom} L${points[0].x},${bottom} Z`;
-    this.chartDots = points.slice(1);
+    this.chartArea = `${path} L${width},${bottom} L0,${bottom} Z`;
+    this.chartDots = dotPoints;
   }
 }

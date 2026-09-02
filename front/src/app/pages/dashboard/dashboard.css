@@ -110,6 +110,7 @@
   text-align: center;
   box-shadow: 5px 5px 12px rgba(180, 120, 100, 0.3), -3px -3px 8px rgba(255, 255, 255, 0.4);
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .nav-logout:hover {
@@ -204,11 +205,11 @@
 }
 
 .card-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-gray);
+  font-size: 14px;
+  font-weight: 900;
+  color: #111111;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.8px;
 }
 
 .card-value {
@@ -228,7 +229,8 @@
 }
 
 .card-saldo .card-label {
-  color: rgba(0, 0, 0, 0.5);
+  color: #111111;
+  font-weight: 900;
 }
 
 .card-saldo .card-value {
@@ -239,6 +241,11 @@
   background: var(--color-white);
   box-shadow: var(--shadow-neo);
   border: 1px solid rgba(145, 191, 6, 0.15);
+}
+
+.card-ingreso .card-label {
+  color: #111111;
+  font-weight: 900;
 }
 
 .card-ingreso .card-value {
@@ -255,6 +262,11 @@
   border: 1px solid rgba(232, 160, 144, 0.2);
 }
 
+.card-gasto .card-label {
+  color: #111111;
+  font-weight: 900;
+}
+
 .card-gasto .card-value {
   color: #b44040;
 }
@@ -267,6 +279,11 @@
   background: linear-gradient(135deg, var(--color-lime-pale) 0%, #d4eaa0 100%);
   border: 1px solid rgba(145, 191, 6, 0.25);
   box-shadow: 5px 5px 14px rgba(145, 191, 6, 0.12), -3px -3px 8px rgba(255, 255, 255, 0.7);
+}
+
+.card-ahorro .card-label {
+  color: #111111;
+  font-weight: 900;
 }
 
 .card-ahorro .card-value {
@@ -560,18 +577,19 @@
 }
 
 .chart-x-axis {
-  display: flex;
-  justify-content: space-between;
-  margin-left: 50px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  text-align: center;
+  margin-left: 42px;
   margin-top: 8px;
   font-size: 10px;
   font-weight: 500;
   color: var(--color-black);
 }
 
-/* ========== CIRCULAR PROGRESS ========== */
+/* ========== CIRCULAR PROGRESS - DEUDAS ========== */
 .circular-container {
-  background: linear-gradient(160deg, #f0f8d8 0%, var(--color-lime-bg) 100%);
+  background: linear-gradient(135deg, var(--color-lime-pale) 0%, #d4eaa0 100%);
   border: 1px solid rgba(145, 191, 6, 0.25);
   border-radius: 22px;
   padding: 28px 20px;
@@ -598,9 +616,10 @@
 
 .circular-label-top {
   font-size: 14px;
-  font-weight: 700;
-  color: var(--color-dark-green);
-  letter-spacing: -0.2px;
+  font-weight: 900;
+  color: #111111;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
 }
 
 .circular-chart {
@@ -617,14 +636,14 @@
 
 .circular-bg {
   fill: none;
-  stroke: rgba(145, 191, 6, 0.2);
-  stroke-width: 12;
+  stroke: #FFFFFF;
+  stroke-width: 14;
 }
 
 .circular-progress {
   fill: none;
   stroke: var(--color-lime);
-  stroke-width: 12;
+  stroke-width: 14;
   stroke-linecap: round;
   stroke-dasharray: 314.16;
 }
