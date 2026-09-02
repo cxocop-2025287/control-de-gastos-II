@@ -1,5 +1,9 @@
-import { Pool, PoolConfig, QueryResultRow } from 'pg';
+import { Pool, PoolConfig, QueryResultRow, types } from 'pg';
 import { env } from './env';
+
+// Forzar que el tipo DATE (OID 1082) de PostgreSQL se retorne como string 'YYYY-MM-DD'
+// sin conversión de zona horaria por parte de JavaScript Date
+types.setTypeParser(1082, (val: string) => val);
 
 class DatabaseService {
   private static instance: DatabaseService;
@@ -55,9 +59,25 @@ class DatabaseService {
       );
     `;
 
-    const createIndex = `
+    const createIncomesTable = `
+      CREATE TABLE IF NOT EXISTS incomes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+        descripcion VARCHAR(255) NOT NULL,
+        categoria VARCHAR(50) NOT NULL CHECK (categoria IN ('Salario', 'Trabajo extra', 'Bono', 'Venta', 'Otro')),
+        monto DECIMAL(12,2) NOT NULL CHECK (monto > 0),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    const createIndexes = `
       CREATE INDEX IF NOT EXISTS idx_users_name ON users(name);
       CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+      CREATE INDEX IF NOT EXISTS idx_incomes_user_id ON incomes(user_id);
+      CREATE INDEX IF NOT EXISTS idx_incomes_fecha ON incomes(fecha);
+      CREATE INDEX IF NOT EXISTS idx_incomes_categoria ON incomes(categoria);
     `;
 
     const updateTrigger = `
@@ -81,11 +101,25 @@ class DatabaseService {
         END IF;
       END;
       $$;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger WHERE tgname = 'update_incomes_updated_at'
+        ) THEN
+          CREATE TRIGGER update_incomes_updated_at
+            BEFORE UPDATE ON incomes
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+      END;
+      $$;
     `;
 
     try {
       await this.pool!.query(createUsersTable);
-      await this.pool!.query(createIndex);
+      await this.pool!.query(createIncomesTable);
+      await this.pool!.query(createIndexes);
       await this.pool!.query(updateTrigger);
       console.log('Tablas verificadas/creadas correctamente');
     } catch (error) {
