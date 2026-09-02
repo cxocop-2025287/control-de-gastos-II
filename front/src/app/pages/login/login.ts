@@ -165,7 +165,7 @@ export class LoginComponent implements AfterViewInit, OnDestroy {
     this.successMessage = '';
 
     if (!this.name.trim() || !this.password.trim()) {
-      this.errorMessage = 'Por favor, completa todos los campos.';
+      this.errorMessage = 'Por favor, complete todos los campos.';
       this.cdr.detectChanges();
       return;
     }
@@ -190,9 +190,9 @@ export class LoginComponent implements AfterViewInit, OnDestroy {
         } else if (error.error?.errorCode === 'ACCOUNT_DISABLED') {
           this.errorMessage = 'Esta cuenta no está habilitada para iniciar sesión.';
         } else if (error.status === 0) {
-          this.errorMessage = 'No se pudo conectar con el servidor. Verifica que el backend esté corriendo.';
+          this.errorMessage = 'No se pudo conectar con el servidor. Verifique que el backend esté corriendo.';
         } else {
-          this.errorMessage = 'Ocurrió un error inesperado. Intenta nuevamente.';
+          this.errorMessage = 'Ocurrió un error inesperado. Intente nuevamente.';
         }
 
         this.cdr.detectChanges();
