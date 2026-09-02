@@ -11,8 +11,9 @@ export const env = {
   DB_PASSWORD: process.env.DB_PASSWORD || 'admin',
   DB_NAME: process.env.DB_NAME || 'control_de_gastos',
   JWT_SECRET: process.env.JWT_SECRET || 'default_secret_change_me',
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '4h',
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:4200',
   SEED_USER_PASSWORD: process.env.SEED_USER_PASSWORD || 'usuario123',
   SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD || 'admin123',
+  SESSION_INACTIVITY_TIMEOUT: parseInt(process.env.SESSION_INACTIVITY_TIMEOUT || '60', 10),
 };
