@@ -3,6 +3,7 @@ import { UserModel, IUser } from '../models/user.model';
 import { generateToken } from '../utils/jwt';
 import { ILoginRequest, ILoginResponse } from '../types/auth.types';
 import { env } from '../config/env';
+import { registerActivity } from '../middleware/activity.middleware';
 
 export class AppError extends Error {
   public statusCode: number;
@@ -41,6 +42,8 @@ export class AuthService {
     };
 
     const token = generateToken(tokenPayload);
+
+    registerActivity(user.id);
 
     return {
       message: 'Inicio de sesion exitoso',
