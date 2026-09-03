@@ -317,6 +317,8 @@ export class IngresosComponent implements OnInit, OnDestroy {
   }
 
   onNavClick(item: string): void {
+    if (item !== 'Home' && item !== 'Ingresos') return;
+
     if (item === 'Home') {
       this.router.navigate(['/app']);
       return;
