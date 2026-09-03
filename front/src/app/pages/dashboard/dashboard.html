@@ -12,6 +12,7 @@
         <span
           class="nav-item"
           [class.active]="activeNav === item"
+          [class.disabled]="item !== 'Home' && item !== 'Ingresos'"
           (click)="onNavClick(item)"
         >{{ item }}</span>
         <span class="nav-divider" *ngIf="!last"></span>
@@ -19,7 +20,7 @@
     </div>
 
     <button class="nav-logout" (click)="onLogout()">
-      Cerrar<br/>Sesion
+      Cerrar<br/>Sesión
     </button>
   </nav>
 
@@ -54,8 +55,8 @@
         <div class="table-inner">
           <div class="table-row table-header-row">
             <div class="table-cell header-cell">Fecha</div>
-            <div class="table-cell header-cell">Descripcion</div>
-            <div class="table-cell header-cell">Categoria</div>
+            <div class="table-cell header-cell">Descripción</div>
+            <div class="table-cell header-cell">Categoría</div>
             <div class="table-cell header-cell">Tipo</div>
             <div class="table-cell header-cell">Monto</div>
           </div>

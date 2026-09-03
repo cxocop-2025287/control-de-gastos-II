@@ -129,6 +129,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   onNavClick(item: string): void {
+    if (item !== 'Home' && item !== 'Ingresos') return;
+
     if (item === 'Ingresos') {
       this.router.navigate(['/ingresos']);
       return;
