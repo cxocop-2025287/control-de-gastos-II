@@ -1,0 +1,154 @@
+<div class="dashboard-page">
+
+  <!-- NAVBAR -->
+  <nav class="dash-nav">
+    <div class="nav-brand">
+      <img src="img/LogoTrasparente.png" alt="Logo" class="nav-logo-img" />
+      <span class="nav-brand-text">Gestor de Gastos</span>
+    </div>
+
+    <div class="nav-menu">
+      <ng-container *ngFor="let item of navItems; let last = last">
+        <span
+          class="nav-item"
+          [class.active]="activeNav === item"
+          [class.disabled]="item !== 'Home' && item !== 'Ingresos'"
+          (click)="onNavClick(item)"
+        >{{ item }}</span>
+        <span class="nav-divider" *ngIf="!last"></span>
+      </ng-container>
+    </div>
+
+    <button class="nav-logout" (click)="onLogout()">
+      Cerrar<br/>Sesión
+    </button>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="dash-main">
+
+    <!-- LEFT: Cards + Table -->
+    <div class="dash-left">
+
+      <!-- Status Cards 2x2 -->
+      <div class="status-grid">
+        <div class="status-card card-saldo">
+          <span class="card-label">Saldo total</span>
+          <span class="card-value">{{ formatCurrency(displayedSummary.saldoTotal) }}</span>
+        </div>
+        <div class="status-card card-ingreso">
+          <span class="card-label">Ingreso</span>
+          <span class="card-value">{{ formatCurrency(displayedSummary.ingreso) }}</span>
+        </div>
+        <div class="status-card card-gasto">
+          <span class="card-label">Gasto</span>
+          <span class="card-value">{{ formatCurrency(displayedSummary.gasto) }}</span>
+        </div>
+        <div class="status-card card-ahorro">
+          <span class="card-label">Ahorro</span>
+          <span class="card-value">{{ formatCurrency(displayedSummary.ahorroMensual) }}</span>
+        </div>
+      </div>
+
+      <!-- Excel-like Table -->
+      <div class="table-container">
+        <div class="table-inner">
+          <div class="table-row table-header-row">
+            <div class="table-cell header-cell">Fecha</div>
+            <div class="table-cell header-cell">Descripción</div>
+            <div class="table-cell header-cell">Categoría</div>
+            <div class="table-cell header-cell">Tipo</div>
+            <div class="table-cell header-cell">Monto</div>
+          </div>
+          <div class="table-row" *ngFor="let m of movements">
+            <div class="table-cell cell-date">{{ formatDate(m.fecha) }}</div>
+            <div class="table-cell cell-desc">{{ m.descripcion }}</div>
+            <div class="table-cell cell-cat">{{ m.categoria }}</div>
+            <div class="table-cell cell-type">
+              <span class="type-badge" [class.type-ingreso]="m.tipo === 'ingreso'" [class.type-gasto]="m.tipo === 'gasto'">
+                {{ m.tipo === 'ingreso' ? 'Ingreso' : 'Gasto' }}
+              </span>
+            </div>
+            <div class="table-cell cell-amount" [class.amount-positive]="m.tipo === 'ingreso'" [class.amount-negative]="m.tipo === 'gasto'">
+              {{ m.tipo === 'ingreso' ? '+' : '-' }}{{ formatCurrency(m.monto) }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Chart + Circular -->
+    <div class="dash-right">
+
+      <!-- Flujo de Dinero Chart -->
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3 class="chart-title">Flujo de dinero</h3>
+          <span class="chart-month">{{ currentMonth }}</span>
+        </div>
+        <div class="chart-area">
+          <div class="chart-body">
+            <div class="chart-y-axis">
+              <span *ngFor="let label of chartYLabels; index as i" [style.top.px]="i * 40">{{ label }}</span>
+            </div>
+            <div class="chart-graph">
+              <div class="chart-grid">
+                <div class="grid-line" *ngFor="let i of [1,2,3,4]" [style.top.px]="i * 40"></div>
+              </div>
+              <svg class="chart-svg" viewBox="0 0 500 200" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="gradFlujo" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.45"/>
+                    <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.03"/>
+                  </linearGradient>
+                </defs>
+                <path class="chart-area-fill" [attr.d]="chartArea" fill="url(#gradFlujo)"/>
+                <path class="chart-line" [attr.d]="chartPath" fill="none" stroke="#0ea5e9" stroke-width="3" stroke-linecap="round"/>
+                <circle class="chart-dot" *ngFor="let dot of chartDots; index as i" [attr.cx]="dot.x" [attr.cy]="dot.y" r="4.5" fill="#0ea5e9" [style.animation-delay]="(0.3 + i * 0.25) + 's'"/>
+              </svg>
+            </div>
+          </div>
+          <div class="chart-x-axis">
+            <span *ngFor="let label of chartLabels">{{ label }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Circular Progress - Deudas -->
+      <div class="circular-container">
+        <div class="circular-label-top">Deudas pagadas</div>
+        <div class="circular-chart">
+          <svg viewBox="0 0 120 120">
+            <circle class="circular-bg" cx="60" cy="60" r="50" />
+            <circle
+              class="circular-progress"
+              cx="60" cy="60" r="50"
+              [style.strokeDashoffset.px]="debtOffset"
+            />
+          </svg>
+          <span class="circular-text">{{ displayedPorcentaje }}%</span>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Session Expired Modal -->
+  <div class="session-expired-overlay" *ngIf="showSessionExpired">
+    <div class="session-expired-modal">
+      <div class="modal-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-yellow-mustard)" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <h2>Sesión expirada</h2>
+      <p>Su sesión ha terminado por inactividad. Inicie sesión nuevamente para continuar.</p>
+      <button class="btn-accept" (click)="onAcceptSessionExpired()">Aceptar</button>
+    </div>
+  </div>
+
+</div>
